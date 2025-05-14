@@ -11,8 +11,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"os/user"
-	"strconv"
 	"syscall"
 
 	"github.com/cilium/ebpf/link"
@@ -100,27 +98,10 @@ func main() {
 			}
 
 			// Resolve UIDs/GIDs to names
-			openerUser, err := user.LookupId(strconv.Itoa(int(e.FileOpenerUID)))
-			openerName := strconv.Itoa(int(e.FileOpenerUID))
-			if err == nil {
-				openerName = openerUser.Username
-			}
-			openerGroup, err := user.LookupGroupId(strconv.Itoa(int(e.FileOpenerGID)))
-			openerGroupName := strconv.Itoa(int(e.FileOpenerGID))
-			if err == nil {
-				openerGroupName = openerGroup.Name
-			}
-
-			ownerUser, err := user.LookupId(strconv.Itoa(int(e.FileOwnerUID)))
-			ownerName := strconv.Itoa(int(e.FileOwnerUID))
-			if err == nil {
-				ownerName = ownerUser.Username
-			}
-			ownerGroup, err := user.LookupGroupId(strconv.Itoa(int(e.FileOwnerGID)))
-			ownerGroupName := strconv.Itoa(int(e.FileOwnerGID))
-			if err == nil {
-				ownerGroupName = ownerGroup.Name
-			}
+			openerName := lookupUserName(e.FileOpenerUID)
+			openerGroupName := lookupGroupName(e.FileOpenerGID)
+			ownerName := lookupUserName(e.FileOwnerUID)
+			ownerGroupName := lookupGroupName(e.FileOwnerGID)
 
 			// Print formatted event
 			fmt.Printf(
