@@ -1,0 +1,6 @@
+# .gitignore
+capture_path
+*.o
+*.bpf.o
+*.skel.h
+vmlinux.h
