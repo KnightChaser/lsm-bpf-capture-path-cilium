@@ -1,26 +1,33 @@
-BPFTOLL      := bpftool
-CC           := clang
-CFLAGS       := -O2 -g -target bpf -I.
-GO           := go
+# Tools
+BPFTOOL     := bpftool
+GO          := go
+GEN_SCRIPT  := bpf-gen.sh
+BTF_HEADER  := vmlinux.h
+BINARY      := capture_path
 
-# Default target: generate BTF header, compile BPF, build Go binary
-all: vmlinux.h capture_path.bpf.o capture_path
+.PHONY: all gen build clean
 
-# 1. Generate the kernel type header for CO-RE
-vmlinux.h:
-	$(BPFTOLL) btf dump file /sys/kernel/btf/vmlinux format c > $@ 
+all: $(BTF_HEADER) gen build
 
-# 2. Compile the BPF stub into an object
-capture_path.bpf.o: capture_path.bpf.c vmlinux.h
-	$(CC) $(CFLAGS) -c $< -o $@ 
+# 1. Export kernel BTF for CO-RE
+$(BTF_HEADER):
+	$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > $@
 
-# 3. Build the Go loader program
-capture_path: main.go
-	$(GO) build -o $@ .
+# 2. Ensure bpf-gen.sh is executable and run go generate
+gen: $(GEN_SCRIPT)
+	chmod +x $(GEN_SCRIPT)
+	$(GO) generate
 
-# Clean up intermediate and binary files
+# 3. Build Go program
+build:
+	$(GO) build -o $(BINARY) .
+
+
+# Remove all generated artifacts
 clean:
-	rm -f vmlinux.h 
-	rm -f capture_path.bpf.o 
+	rm -f vmlinux.h
+	rm -f capturepath_bpfeb.go
+	rm -f capturepath_bpfel.go
+	rm -f capturepath_bpfeb.o
+	rm -f capturepath_bpfel.o
 	rm -f capture_path
-

@@ -1,6 +1,9 @@
 # .gitignore
-capture_path
 *.o
 *.bpf.o
 *.skel.h
 vmlinux.h
+
+capture_path
+capturepath_bpfeb.go
+capturepath_bpfel.go
