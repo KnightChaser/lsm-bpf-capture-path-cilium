@@ -13,6 +13,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"lsm-bpf-capture-path-cilium/utilities"
+
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
@@ -98,10 +100,10 @@ func main() {
 			}
 
 			// Resolve UIDs/GIDs to names
-			openerName := lookupUserName(e.FileOpenerUID)
-			openerGroupName := lookupGroupName(e.FileOpenerGID)
-			ownerName := lookupUserName(e.FileOwnerUID)
-			ownerGroupName := lookupGroupName(e.FileOwnerGID)
+			openerName := utilities.LookupUserName(e.FileOpenerUID)
+			openerGroupName := utilities.LookupGroupName(e.FileOpenerGID)
+			ownerName := utilities.LookupUserName(e.FileOwnerUID)
+			ownerGroupName := utilities.LookupGroupName(e.FileOwnerGID)
 
 			// Print formatted event
 			fmt.Printf(
