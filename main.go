@@ -22,16 +22,18 @@ import (
 
 // Event mirrors the kernel’s struct event layout.
 type Event struct {
-	PID           uint32
-	FileOpenerUID uint32
-	FileOpenerGID uint32
-	FileOwnerUID  uint32
-	FileOwnerGID  uint32
-	Mode          uint32
-	Inode         uint64
-	Size          uint64
-	ProcessName   [32]byte
-	Path          [384]byte
+	PID               uint32
+	FileOpenerUID     uint32
+	FileOpenerGID     uint32
+	FileOwnerUID      uint32
+	FileOwnerGID      uint32
+	Mode              uint32
+	Fmode             uint32
+	FileOperationType uint32
+	Inode             uint64
+	Size              uint64
+	ProcessName       [32]byte
+	Path              [384]byte
 }
 
 // cStr converts a null-terminated byte array to a Go string.
@@ -105,14 +107,24 @@ func main() {
 			ownerName := utilities.LookupUserName(e.FileOwnerUID)
 			ownerGroupName := utilities.LookupGroupName(e.FileOwnerGID)
 
+			var fileOperationStirng string
+			if e.FileOperationType == 0 {
+				fileOperationStirng = "READ"
+			} else if e.FileOperationType == 1 {
+				fileOperationStirng = "WRITE"
+			} else if e.FileOperationType == 2 {
+				fileOperationStirng = "OTHER"
+			}
+
 			// Print formatted event
 			fmt.Printf(
-				"[PID %d] Opener=%s(%d):%s(%d), Owner=%s(%d):%s(%d), inode=%d, size=%d, mode=%#o, proc=%s, path=%s\n",
+				"[PID %d] Opener=%s(%d):%s(%d), Owner=%s(%d):%s(%d), inode=%d, size=%d, mode=%#o, proc=%s, path=%s, fmode=0b%032b, op=%d(%s)\n",
 				e.PID,
 				openerName, e.FileOpenerUID, openerGroupName, e.FileOpenerGID,
 				ownerName, e.FileOwnerUID, ownerGroupName, e.FileOwnerGID,
 				e.Inode, e.Size, e.Mode&0xFFF,
 				cStr(e.ProcessName[:]), cStr(e.Path[:]),
+				e.Fmode, e.FileOperationType, fileOperationStirng,
 			)
 		}
 	}
