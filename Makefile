@@ -1,7 +1,7 @@
 # Tools
 BPFTOOL     := bpftool
 GO          := go
-GEN_SCRIPT  := bpf-gen.sh
+BPF_DIR     := bpf
 BTF_HEADER  := vmlinux.h
 BINARY      := capture_path
 
@@ -15,8 +15,8 @@ $(BTF_HEADER):
 
 # 2. Ensure bpf-gen.sh is executable and run go generate
 gen: $(GEN_SCRIPT)
-	chmod +x $(GEN_SCRIPT)
-	$(GO) generate
+	chmod +x ./$(BPF_DIR)/$(GEN_SCRIPT)
+	$(GO) generate ./$(BPF_DIR)
 
 # 3. Build Go program
 build:
@@ -25,9 +25,9 @@ build:
 
 # Remove all generated artifacts
 clean:
-	rm -f vmlinux.h
-	rm -f capturepath_bpfeb.go
-	rm -f capturepath_bpfel.go
-	rm -f capturepath_bpfeb.o
-	rm -f capturepath_bpfel.o
-	rm -f capture_path
+	rm -f $(BTF_HEADER)
+	rm -f $(BINARY)
+	rm -rf \
+	  $(BPF_DIR)/*_bpfeb.go \
+	  $(BPF_DIR)/*_bpfel.go \
+	  $(BPF_DIR)/*.o
