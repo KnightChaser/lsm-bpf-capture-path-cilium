@@ -16,7 +16,11 @@ func main() {
 	}
 
 	// kick off the BPF machinery
-	if err := bpf.RunCaptureFilePath(); err != nil {
-		log.Fatalf("bpf.Run(): %v", err)
+	// if err := bpf.RunCaptureFilePath(); err != nil {
+	// 	log.Fatalf("bpf.RunCaptureFilePath(): %v", err)
+	// }
+
+	if err := bpf.RunCaptureInodeRename(); err != nil {
+		log.Fatalf("bpf.RunCaptureInodeRename(): %v", err)
 	}
 }
