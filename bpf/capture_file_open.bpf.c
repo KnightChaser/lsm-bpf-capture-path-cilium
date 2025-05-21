@@ -3,20 +3,12 @@
 
 // bpf/capture_file_open.bpf.c
 
+#include "consts.h"
 #include "fmode.h"
 #include "vmlinux.h"
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
-
-#define MAX_PATH_LEN 384
-#define MAX_PROCESS_NAME_LEN 32
-
-enum {
-    FILE_OP_READ = 0,
-    FILE_OP_WRITE = 1,
-    FILE_OP_OTHER = 2,
-};
 
 /* Event struct sent over ringbuf */
 struct event {
