@@ -3,7 +3,12 @@
 #ifndef __CONSTS_H
 #define __CONSTS_H
 
-#define MAX_PATH_LEN 384
+/* capture_file_open */
+#define MAX_PATH_LEN 512
+
+/* capture_inode_rename*/
+#define MAX_DENTRY_TRAVERSAL_DEPTH 16
+#define MAX_NAME_LEN 384
 #define MAX_PROCESS_NAME_LEN 32
 
 enum {

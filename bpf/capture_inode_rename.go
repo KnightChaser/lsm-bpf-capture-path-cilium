@@ -11,19 +11,28 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"syscall"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 )
 
-type event struct {
-	PID     uint32
-	UID     uint32
-	GID     uint32
-	Comm    [32]byte
-	OldPath [384]byte
-	NewPath [384]byte
+const (
+	MAX_NAME_LEN         = 384
+	MAX_PROCESS_NAME_LEN = 32
+)
+
+type renamePathFragEvent struct {
+	EventID  uint64
+	PID      uint32
+	UID      uint32
+	GID      uint32
+	Comm     [MAX_PROCESS_NAME_LEN]byte
+	OldOrNew uint32
+	Depth    uint32
+	DName    [MAX_NAME_LEN]byte
 }
 
 // RunCaptureInodeRename sets up the BPF probe and prints rename events.
@@ -45,7 +54,7 @@ func RunCaptureInodeRename() error {
 	defer lnk.Close()
 
 	// Open ring buffer reader on map "events"
-	rd, err := ringbuf.NewReader(objs.Events)
+	rd, err := ringbuf.NewReader(objs.FragBuf)
 	if err != nil {
 		return fmt.Errorf("ringbuf.NewReader: %w", err)
 	}
@@ -55,44 +64,64 @@ func RunCaptureInodeRename() error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	// Channel to receive decoded events
-	events := make(chan event)
+	type key struct {
+		id       uint64
+		oldOrNew uint32
+	}
+	frags := make(map[key][]renamePathFragEvent)
 
 	// Reader goroutine
 	go func() {
-		defer close(events)
+		defer rd.Close()
 		for {
-			select {
-			case <-sigCh:
-				rd.Close()
+			rec, err := rd.Read()
+			if err == ringbuf.ErrClosed {
 				return
-			default:
-				rec, err := rd.Read()
-				if err != nil {
-					if err == ringbuf.ErrClosed {
-						return
-					}
-					log.Printf("ringbuf read error: %v", err)
-					continue
-				}
-				var e event
-				if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &e); err != nil {
-					log.Printf("binary.Read error: %v", err)
-					continue
-				}
-				events <- e
+			} else if err != nil {
+				log.Printf("ringbuf read error: %v", err)
+				continue
+			}
+
+			var f renamePathFragEvent
+			if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &f); err != nil {
+				log.Printf("binary.Read error: %v", err)
+				continue
+			}
+
+			k := key{f.EventID, f.OldOrNew}
+			frags[k] = append(frags[k], f)
+
+			// simple flush: once we see >2 fragments, assemble
+			if len(frags[k]) > 2 {
+				go assembleAndPrint(frags[k])
+				delete(frags, k)
 			}
 		}
 	}()
 
-	// Main loop: print rename events
-	for e := range events {
-		oldPath := string(bytes.TrimRight(e.OldPath[:], "\x00"))
-		newPath := string(bytes.TrimRight(e.NewPath[:], "\x00"))
-		comm := string(bytes.TrimRight(e.Comm[:], "\x00"))
-		fmt.Printf("[PID %d UID %d GID %d COMM %s] %s → %s\n",
-			e.PID, e.UID, e.GID, comm, oldPath, newPath)
-	}
-
+	<-sigCh
 	return nil
+}
+
+func assembleAndPrint(list []renamePathFragEvent) {
+	// sort by depth descending (leaf first)
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].Depth > list[j].Depth
+	})
+
+	parts := make([]string, 0, len(list))
+	for _, f := range list {
+		name := string(bytes.TrimRight(f.DName[:], "\x00"))
+		parts = append(parts, name)
+	}
+	full := "/" + strings.Join(parts, "/")
+
+	kind := "OLD"
+	if list[0].OldOrNew == 1 {
+		kind = "NEW"
+	}
+	meta := list[0]
+	comm := string(bytes.TrimRight(meta.Comm[:], "\x00"))
+	fmt.Printf("[PID %d UID %d GID %d COMM %s] %s -> %s\n",
+		meta.PID, meta.UID, meta.GID, comm, kind, full)
 }
