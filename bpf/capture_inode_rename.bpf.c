@@ -16,7 +16,8 @@ struct rename_path_frag_event {
     u32 gid;
     char comm[MAX_PROCESS_NAME_LEN];
     u32 old_or_new; // 0 = old_dentry, 1 = new_dentry
-    u32 depth;      // 0 = leaf, 1 = parent, 2 = grandparent, ...
+    u32 depth;      // 0 = leaf, 1 = parent, 2 = grandparent, ...,
+                    // SENTINEL_DEPTH = end-marker (says we are done)
     char d_name[MAX_NAME_LEN];
 };
 
@@ -67,6 +68,36 @@ static __always_inline void emit_frag(struct dentry *d, // NOLINT
     bpf_ringbuf_submit(e, 0);
 }
 
+/*
+ * emit_sentinel - Emit a sentinel event to the ring buffer.
+ *
+ * @event_id: The event ID.
+ * @old_or_new: 0 for old_dentry, 1 for new_dentry.
+ * @pid: The PID of the process.
+ * @uid: The UID of the process.
+ * @gid: The GID of the process.
+ */
+static __always_inline void emit_sentinel(u64 event_id,   // NOLINT
+                                          u32 old_or_new, // NOLINT
+                                          u32 pid,        // NOLINT
+                                          u32 uid,        // NOLINT
+                                          u32 gid) {      // NOLINT
+    struct rename_path_frag_event *e =
+        bpf_ringbuf_reserve(&frag_buf, sizeof(*e), 0);
+    if (!e)
+        return;
+
+    // zero everything
+    __builtin_memset(e, 0, sizeof(*e));
+
+    // Fill only necessary information
+    e->event_id = event_id;
+    e->old_or_new = old_or_new;
+    e->depth = SENTINEL_DEPTH;
+
+    bpf_ringbuf_submit(e, 0);
+}
+
 SEC("lsm.s/inode_rename")
 int BPF_PROG(capture_rename,                                   // NOLINT
              struct inode *old_dir, struct dentry *old_dentry, // NOLINT
@@ -90,6 +121,7 @@ int BPF_PROG(capture_rename,                                   // NOLINT
         emit_frag(d, 0, i, event_id, pid, uid, gid);
         d = BPF_CORE_READ(d, d_parent);
     }
+    emit_sentinel(event_id, 0, pid, uid, gid);
 
     // new path fragments
     d = new_dentry;
@@ -103,6 +135,7 @@ int BPF_PROG(capture_rename,                                   // NOLINT
         emit_frag(d, 1, i, event_id, pid, uid, gid);
         d = BPF_CORE_READ(d, d_parent);
     }
+    emit_sentinel(event_id, 1, pid, uid, gid);
 
     return 0;
 }

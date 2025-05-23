@@ -8,6 +8,7 @@
 
 /* capture_inode_rename*/
 #define MAX_DENTRY_TRAVERSAL_DEPTH 16
+#define SENTINEL_DEPTH 0xFFFFFFFF
 #define MAX_NAME_LEN 384
 #define MAX_PROCESS_NAME_LEN 32
 
