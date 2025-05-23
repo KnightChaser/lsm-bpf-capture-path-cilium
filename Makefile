@@ -11,7 +11,7 @@ all: $(BTF_HEADER) gen build
 
 # 1. Export kernel BTF for CO-RE
 $(BTF_HEADER):
-	$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > $@
+	$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > $(BPF_DIR)/$@
 
 # 2. Ensure bpf-gen.sh is executable and run go generate
 gen: $(GEN_SCRIPT)
@@ -25,7 +25,7 @@ build:
 
 # Remove all generated artifacts
 clean:
-	rm -f $(BTF_HEADER)
+	rm -f $(BPF_DIR)/$(BTF_HEADER)
 	rm -f $(BINARY)
 	rm -rf \
 	  $(BPF_DIR)/*_bpfeb.go \
