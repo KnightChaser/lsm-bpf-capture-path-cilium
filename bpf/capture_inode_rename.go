@@ -7,6 +7,7 @@ package bpf
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -64,6 +65,12 @@ func RunCaptureInodeRename() error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
+	go func() {
+		<-sigCh
+		rd.Close()
+	}()
+
+	// Map to store fragments
 	type key struct {
 		id       uint64
 		oldOrNew uint32
@@ -71,33 +78,32 @@ func RunCaptureInodeRename() error {
 	frags := make(map[key][]renamePathFragEvent)
 
 	// Reader goroutine
-	go func() {
-		defer rd.Close()
-		for {
-			rec, err := rd.Read()
-			if err == ringbuf.ErrClosed {
-				return
-			} else if err != nil {
-				log.Printf("ringbuf read error: %v", err)
-				continue
+	for {
+		rec, err := rd.Read()
+		if err != nil {
+			// detect real closure of the ring buffer
+			if errors.Is(err, ringbuf.ErrClosed) {
+				break
 			}
-
-			var f renamePathFragEvent
-			if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &f); err != nil {
-				log.Printf("binary.Read error: %v", err)
-				continue
-			}
-
-			k := key{f.EventID, f.OldOrNew}
-			frags[k] = append(frags[k], f)
-
-			// simple flush: once we see >2 fragments, assemble
-			if len(frags[k]) > 2 {
-				go assembleAndPrint(frags[k])
-				delete(frags, k)
-			}
+			log.Printf("ringbuf read error: %v", err)
+			continue
 		}
-	}()
+
+		var f renamePathFragEvent
+		if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &f); err != nil {
+			log.Printf("binary.Read error: %v", err)
+			continue
+		}
+
+		k := key{f.EventID, f.OldOrNew}
+		frags[k] = append(frags[k], f)
+
+		// simple flush: once we see >2 fragments, assemble
+		if len(frags[k]) > 2 {
+			go assembleAndPrint(frags[k])
+			delete(frags, k)
+		}
+	}
 
 	<-sigCh
 	return nil
