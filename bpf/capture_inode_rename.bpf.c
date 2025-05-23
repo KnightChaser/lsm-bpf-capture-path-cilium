@@ -50,6 +50,9 @@ static __always_inline void emit_frag(struct dentry *d, // NOLINT
         return;
     }
 
+    // zero everything to avoid leaking memory
+    __builtin_memset(e, 0, sizeof(*e));
+
     e->event_id = event_id;
     e->pid = pid;
     e->uid = uid;
@@ -84,10 +87,11 @@ static __always_inline void emit_sentinel(u64 event_id,   // NOLINT
                                           u32 gid) {      // NOLINT
     struct rename_path_frag_event *e =
         bpf_ringbuf_reserve(&frag_buf, sizeof(*e), 0);
-    if (!e)
+    if (!e) {
         return;
+    }
 
-    // zero everything
+    // zero everything to avoid leaking memory
     __builtin_memset(e, 0, sizeof(*e));
 
     // Fill only necessary information
