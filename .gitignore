@@ -5,5 +5,7 @@
 vmlinux.h
 
 capture_path
-capturepath_bpfeb.go
-capturepath_bpfel.go
+capturefileopen_bpfeb.go
+capturefileopen_bpfel.go
+captureinoderename_bpfeb.go
+captureinoderename_bpfel.go

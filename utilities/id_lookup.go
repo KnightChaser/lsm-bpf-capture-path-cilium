@@ -1,5 +1,5 @@
-// id_lookup.go
-package main
+// utilities/id_lookup.go
+package utilities
 
 import (
 	"os/user"
@@ -16,10 +16,10 @@ var (
 	groupCacheMutex sync.RWMutex
 )
 
-// lookupuserName returns the username for the given uid.
+// LookupUserName returns the username for the given uid.
 // It checks the cache first; on a miss it calls os/user.LookupId,
 // stores the result in the cache, and returns it.
-func lookupUserName(uid uint32) string {
+func LookupUserName(uid uint32) string {
 	// Fast path: read-lock
 	userCacheMutex.RLock()
 	if name, ok := userCache[uid]; ok {
@@ -43,10 +43,10 @@ func lookupUserName(uid uint32) string {
 	return name
 }
 
-// lookupGroupName returns the groupname for the given gid.
+// LookupGroupName returns the groupname for the given gid.
 // It checks the cache first; on a miss it calls os/user.LookupGroupId,
 // stores the result in the cache, and returns it.
-func lookupGroupName(gid uint32) string {
+func LookupGroupName(gid uint32) string {
 	// Fast path: read-lock
 	groupCacheMutex.RLock()
 	if name, ok := groupCache[gid]; ok {

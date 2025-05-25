@@ -1,11 +1,10 @@
 // go:build ignore
 //+build ignore
 
-//  capture_path.bpf.c
+// bpf/capture_file_open.bpf.c
 
-#define MAX_PATH_LEN 384
-#define MAX_PROCESS_NAME_LEN 32
-
+#include "consts.h"
+#include "fmode.h"
 #include "vmlinux.h"
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
@@ -14,13 +13,15 @@
 /* Event struct sent over ringbuf */
 struct event {
     u32 pid;
-    u32 file_opener_uid; /* UID of the process opening the file */
-    u32 file_opener_gid; /* GID of the process opening the file */
-    u32 file_owner_uid;  /* UID of the file’s owner */
-    u32 file_owner_gid;  /* GID of the file’s owner */
-    u32 mode;            /* inode mode bits (type + perms) */
-    u64 inode;           /* inode number */
-    u64 size;            /* file size in bytes */
+    u32 file_opener_uid;     /* UID of the process opening the file */
+    u32 file_opener_gid;     /* GID of the process opening the file */
+    u32 file_owner_uid;      /* UID of the file’s owner */
+    u32 file_owner_gid;      /* GID of the file’s owner */
+    u32 mode;                /* inode mode bits (type + perms) */
+    u32 f_mode;              /* file mode bits (type + perms) */
+    u32 file_operation_type; /* 0 = read, 1 = write, 2 = other */
+    u64 inode;               /* inode number */
+    u64 size;                /* file size in bytes */
     char process_name[MAX_PROCESS_NAME_LEN];
     char path[MAX_PATH_LEN];
 };
@@ -72,6 +73,25 @@ int BPF_PROG(capture_open, struct file *file) {
     e->mode = BPF_CORE_READ(inode, i_mode);
     e->inode = BPF_CORE_READ(inode, i_ino);
     e->size = BPF_CORE_READ(inode, i_size);
+
+    /* Classify the operation using f_mode bits */
+    e->f_mode = BPF_CORE_READ(file, f_mode);
+    if (e->f_mode & FMODE_PATH) {
+        /*
+         * FMODE_PATH is set when the file is opened with O_PATH.
+         * This means that the file is not opened for reading or writing,
+         * but only for obtaining a file descriptor.
+         * This is not a read or write operation.
+         * We can ignore this case.
+         */
+        e->file_operation_type = FILE_OP_OTHER;
+    } else if (e->f_mode & FMODE_WRITE) {
+        e->file_operation_type = FILE_OP_WRITE;
+    } else if (e->f_mode & FMODE_READ) {
+        e->file_operation_type = FILE_OP_READ;
+    } else {
+        e->file_operation_type = FILE_OP_OTHER;
+    }
 
     /* Fetch full path; if it fails, discard the event */
     ret = get_path_full(file, e->path, sizeof(e->path));
